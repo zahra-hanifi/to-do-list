@@ -52,15 +52,17 @@
         Loading Todos...
       </div>
 
-      <div v-else-if="tasks.length" class="flex flex-col gap-y-2">
-        <Task
-          v-for="task in tasks"
-          :key="task.id"
-          :task="task"
-          @remove="removeTask"
-          @toggleTaskStatus="toggleTaskStatus"
-        />
-      </div>
+      <template v-else-if="tasks.length">
+        <transition-group name="list" tag="div" class="flex flex-col gap-y-2">
+          <Task
+            v-for="task in tasks"
+            :key="task.id"
+            :task="task"
+            @remove="removeTask"
+            @toggleTaskStatus="toggleTaskStatus"
+          />
+        </transition-group>
+      </template>
 
       <div v-else class="text-gray-400 text-center">
         Your Task List is Empty!
@@ -110,11 +112,13 @@ export default {
         });
     },
     removeAllTasks() {
+      this.loading = true;
       this.tasks.forEach((task) => {
         this.removeTask(task.id);
       });
     },
     checkAllTasks() {
+      this.loading = true;
       this.tasks.forEach((task) => {
         this.$http
           .put(`/todos/${task.id}`, {
@@ -122,6 +126,9 @@ export default {
           })
           .then((response) => {
             task.completed = response.data.completed;
+          })
+          .finally(() => {
+            this.loading = false;
           });
       });
     },
@@ -133,17 +140,22 @@ export default {
       };
 
       this.$http.post("/todos/add", data).then((response) => {
-        this.tasks.push(response.data);
+        this.tasks.unshift(response.data);
         this.taskTitle = "";
       });
     },
     removeTask(id) {
-      this.$http.delete(`/todos/${id}`).then((response) => {
-        const taskIndex = this.tasks.findIndex(
-          (task) => task.id === response.data.id
-        );
-        this.tasks.splice(taskIndex, 1);
-      });
+      this.$http
+        .delete(`/todos/${id}`)
+        .then((response) => {
+          const taskIndex = this.tasks.findIndex(
+            (task) => task.id === response.data.id
+          );
+          this.tasks.splice(taskIndex, 1);
+        })
+        .finally(() => {
+          if (this.loading) this.loading = false;
+        });
     },
     toggleTaskStatus(task) {
       this.$http
@@ -160,3 +172,15 @@ export default {
   },
 };
 </script>
+
+<style>
+.list-enter-active,
+.list-leave-active {
+  transition: all 0.5s ease;
+}
+.list-enter,
+.list-leave-to {
+  opacity: 0;
+  transform: translateY(30px);
+}
+</style>
