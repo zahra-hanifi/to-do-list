@@ -30,8 +30,8 @@
       </div>
     </div>
 
-    <div class="p-8 flex flex-col gap-y-8">
-      <div class="flex gap-x-4">
+    <div class="p-4 sm:p-8 flex flex-col gap-y-8">
+      <div class="flex gap-x-2 sm:gap-x-4">
         <input
           v-model="taskTitle"
           autofocus
@@ -41,19 +41,24 @@
         />
 
         <button
-          class="bg-blue-500 text-white flex items-center justify-center px-4 rounded-lg hover:bg-blue-600 transition-all"
+          class="bg-blue-500 text-white flex items-center justify-center p-2 sm:px-4 aspect-square rounded-lg hover:bg-blue-600 transition-all"
           @click="addNewTask"
         >
           <font-awesome-icon icon="plus" />
         </button>
       </div>
 
-      <div v-if="tasks.length" class="flex flex-col gap-y-2">
+      <div v-if="loading" class="text-gray-400 text-center">
+        Loading Todos...
+      </div>
+
+      <div v-else-if="tasks.length" class="flex flex-col gap-y-2">
         <Task
-          v-for="(task, index) in tasks"
+          v-for="task in tasks"
           :key="task.id"
-          v-model="tasks[index]"
+          :task="task"
           @remove="removeTask"
+          @toggleTaskStatus="toggleTaskStatus"
         />
       </div>
 
@@ -73,23 +78,11 @@ export default {
   data() {
     return {
       taskTitle: "",
-      tasks: [
-        {
-          id: 1,
-          title: "Upload more project on github",
-          done: false,
-        },
-        {
-          id: 2,
-          title: "Start using vue3",
-          done: false,
-        },
-        {
-          id: 3,
-          title: "Learn Nuxt",
-          done: false,
-        },
-      ],
+      tasks: [],
+      options: {
+        itemsPerPage: 10,
+      },
+      loading: false,
     };
   },
   computed: {
@@ -97,27 +90,72 @@ export default {
       return this.tasks.filter((task) => task.done).length;
     },
   },
+  mounted() {
+    this.fetchTasks();
+  },
   methods: {
+    fetchTasks() {
+      this.loading = true;
+      this.$http
+        .get("/todos", {
+          params: {
+            limit: this.options.itemsPerPage,
+          },
+        })
+        .then((response) => {
+          this.tasks = response.data.todos;
+        })
+        .finally(() => {
+          this.loading = false;
+        });
+    },
     removeAllTasks() {
-      this.tasks.splice(0, this.tasks.length);
+      this.tasks.forEach((task) => {
+        this.removeTask(task.id);
+      });
     },
     checkAllTasks() {
-      this.tasks.map((task) => {
-        task.done = true;
-        return task;
+      this.tasks.forEach((task) => {
+        this.$http
+          .put(`/todos/${task.id}`, {
+            completed: true,
+          })
+          .then((response) => {
+            task.completed = response.data.completed;
+          });
       });
     },
     addNewTask() {
-      this.tasks.push({
-        id: this.tasks.length + 1,
-        title: this.taskTitle,
-        done: false,
+      const data = {
+        todo: this.taskTitle,
+        completed: false,
+        userId: 5,
+      };
+
+      this.$http.post("/todos/add", data).then((response) => {
+        this.tasks.push(response.data);
+        this.taskTitle = "";
       });
-      this.taskTitle = "";
     },
     removeTask(id) {
-      const taskIndex = this.tasks.findIndex((task) => task.id === id);
-      this.tasks.splice(taskIndex, 1);
+      this.$http.delete(`/todos/${id}`).then((response) => {
+        const taskIndex = this.tasks.findIndex(
+          (task) => task.id === response.data.id
+        );
+        this.tasks.splice(taskIndex, 1);
+      });
+    },
+    toggleTaskStatus(task) {
+      this.$http
+        .put(`/todos/${task.id}`, {
+          completed: !task.completed,
+        })
+        .then((response) => {
+          const taskIndex = this.tasks.findIndex(
+            (task) => task.id === response.data.id
+          );
+          this.tasks[taskIndex].completed = response.data.completed;
+        });
     },
   },
 };
