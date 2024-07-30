@@ -87,7 +87,7 @@ export default {
   },
   computed: {
     doneTasks() {
-      return this.tasks.filter((task) => task.done).length;
+      return this.tasks.filter((task) => task.completed).length;
     },
   },
   mounted() {
